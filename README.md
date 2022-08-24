@@ -1,0 +1,1 @@
+# openstratokit-techtec
