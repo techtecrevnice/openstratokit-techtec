@@ -50,7 +50,8 @@
 */
 
 // libraries
-#include <Adafruit_AHT10.h>
+#include <Wire.h>
+#include <Adafruit_SHT31.h>
 #include <Adafruit_BMP280.h>
 #include <RadioLib.h>
 #include <TinyGPS++.h>
@@ -71,7 +72,10 @@
 String call = "TTS9"; // CHANGE THIS!
 long pkt_num = 1; // packet number
 float batt_voltage;
-sensors_event_t humidity, temperature;
+
+
+float humidity;    //outer parameters
+float temperature; //outer parameters
 
 float pressure;    //To store the barometric pressure (hPa)
 float inner_temperature;  //To store the temperature (°C)
@@ -86,7 +90,7 @@ RTTYClient rtty(&radio);
 
 TinyGPSPlus gps;
 
-Adafruit_AHT10 aht;
+Adafruit_SHT31 sht = Adafruit_SHT31();
 Adafruit_BMP280 bmp;
 
 String str;
@@ -103,9 +107,9 @@ void setup() {
   Serial3.println("openSTRATOtracker");
   Serial3.println("zirafa a zizala a slon a hroch a vcela a vosa a petr cermak mod");
   Serial3.println();
-  Serial3.println("lalalalalalalalalalalalalalalalalalalalalalalalalalalalalalalalalalalala_blablablablablablablablablablablablablablabla");
+  
   // init bmp280
-  if (!bmp.begin()) {
+  if (!bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
     Serial3.println("[BMP280] no BMP280 detected...");
   } else Serial3.println("[BMP280] found...");
 
@@ -118,7 +122,7 @@ void setup() {
   {
     Serial3.println("[SIM800L] found...");
     gsmAtCommand("AT+CMGF=1");
-    gsmSendSms("Sonda GSM Successfully initialized");
+    //gsmSendSms("Sonda GSM Successfully initialized");
   }
   else
   {
@@ -132,11 +136,11 @@ void setup() {
                   Adafruit_BMP280::FILTER_X16,      /* Filtering. */
                   Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
 
-  // init and check for AHT10
-  if (!aht.begin()) {
-    Serial3.println("[AHT10] no AHT10 detected...");
-  } else Serial3.println("[AHT10] found...");
-
+  // init and check for SHT31
+  if (! sht.begin(0x44)) {   // Set to 0x45 for alternate i2c addr
+    Serial3.println("[SHT31] no SHT31 detected...");
+  } else Serial3.println("[SHT31] found...");
+  
   // init radio
   Serial3.print(F("[RF69] Initializing ... "));
   SPI.pins(30, 31, 32, 33);
@@ -200,10 +204,9 @@ void loop() {
 
 
 
-  // get data from AHT10
-  temperature.temperature = 0;
-  humidity.relative_humidity = 0;
-  aht.getEvent(&humidity, &temperature);
+  // get data from SHT31
+  temperature = sht.readTemperature();
+  humidity = sht.readHumidity();
 
   // get data from BMP280
   pressure = bmp.readPressure() / 100;
@@ -212,6 +215,8 @@ void loop() {
   //test
   String ds;
   ds = "C$$$" + call + ",";    // Call
+  ds += String(temperature) + ",";      // temperature external
+  ds += String(humidity) + ",";      // external humidity
   ds += String(inner_temperature) + ",";      // temperature internal
   ds += String(pressure) + ",";      // pressure
   ds += String(altimeter) + ",";      // altitude from pressure
@@ -295,8 +300,8 @@ void sendData() {
     datastring += String(inner_temperature, 1) + ",";      // temperature internal
     datastring += String(pressure, 1) + ",";      // pressure
     datastring += String(altimeter) + ",";      // altitude from pressure
-    datastring += String(temperature.temperature, 1) + ",";  // temperature external
-    datastring += String(humidity.relative_humidity, 0) + ",";     // humidity external
+    datastring += String(temperature, 1) + ",";  // temperature external
+    datastring += String(humidity, 0) + ",";     // humidity external
     datastring += String(gps.satellites.value());         // sats
 
     // checksum
